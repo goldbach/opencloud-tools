@@ -13,6 +13,8 @@ The OpenCloud service will be accessible at https://cloud.<base-domain>.
 """
 
 import argparse
+import os
+import shutil
 import sys
 
 OPENCLOUD_TAG = "5.2.0"
@@ -68,21 +70,18 @@ services:
       OC_PASSWORD_POLICY_MIN_UPPERCASE_CHARACTERS: "1"
       OC_PASSWORD_POLICY_MIN_DIGITS: "1"
       OC_PASSWORD_POLICY_MIN_SPECIAL_CHARACTERS: "1"
+    env_file: ./env
     ports:
       - "9200:9200"
     volumes:
       - ./config/opencloud/csp.yaml:/etc/opencloud/csp.yaml
       - ./config/opencloud/banned-password-list.txt:/etc/opencloud/banned-password-list.txt
-      - opencloud-config:/etc/opencloud
-      - opencloud-data:/var/lib/opencloud
+      - /mnt/oc-metadata/oc/config:/etc/opencloud
+      - /mnt/oc-metadata/data:/var/lib/opencloud
       - ./config/opencloud/apps:/var/lib/opencloud/web/assets/apps
     logging:
       driver: local
     restart: always
-
-volumes:
-  opencloud-config:
-  opencloud-data:
 
 networks:
   opencloud-net:
@@ -114,6 +113,17 @@ def main():
     args = parser.parse_args()
 
     content = generate(args.domain, args.admin_password, args.tag)
+
+    # Set up ./env: copy from /etc/opencloud/env if it exists, otherwise create empty
+    env_dest = "env"
+    if not os.path.exists(env_dest):
+        src = "/etc/opencloud/env"
+        if os.path.exists(src):
+            shutil.copy2(src, env_dest)
+            print(f"Copied {src} to {env_dest}", file=sys.stderr)
+        else:
+            open(env_dest, "w").close()
+            print(f"Created empty {env_dest}", file=sys.stderr)
 
     if args.file:
         with open(args.file, "w") as fh:
